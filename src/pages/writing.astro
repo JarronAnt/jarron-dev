@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+const upcoming = [
+  { topic: 'COMPILERS', title: 'Building MicroCC: Tokenization and expression parsing', description: 'A walkthrough of the lexer, recursive parsing, and operator precedence.' },
+  { topic: 'LLVM', title: 'OptForge: My first LLVM optimization pass', description: 'Learning LLVM IR and the anatomy of an analysis/transformation pass.' },
+  { topic: 'SIMULATION', title: 'How ASCII Universe uses an entity-component system', description: 'Organizing simulation state, systems, and fixed-timestep updates.' },
+];
+---
+<BaseLayout title="Writing" description="Development notes and technical essays on compilers, LLVM, and C++ systems.">
+  <section class="py-20">
+    <p class="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-accent">Engineering journal</p>
+    <h1 class="text-5xl font-semibold tracking-tight">Writing<span class="text-accent">.</span></h1>
+    <p class="mt-5 max-w-2xl leading-8 text-muted">Deep dives, build logs, and notes from the process of figuring things out.</p>
+  </section>
+  <section class="border-t border-line/70 py-10">
+    <div class="mb-6 flex items-center justify-between gap-4">
+      <h2 class="text-xl font-semibold">Planned articles</h2>
+      <span class="font-mono text-xs text-muted">Publishing begins in Phase 2</span>
+    </div>
+    {upcoming.map((article) => (
+      <div class="border-b border-line/70 py-7">
+        <p class="mb-2 font-mono text-xs text-accent">{article.topic} / UPCOMING</p>
+        <h3 class="text-xl font-medium text-ink">{article.title}</h3>
+        <p class="mt-2 text-sm leading-7 text-muted">{article.description}</p>
+      </div>
+    ))}
+  </section>
+</BaseLayout>

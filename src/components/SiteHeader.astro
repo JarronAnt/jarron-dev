@@ -1,0 +1,45 @@
+---
+const base = import.meta.env.BASE_URL;
+const links = [
+  { name: 'Writing', path: 'writing/' },
+  { name: 'Projects', path: 'projects/' },
+  { name: 'About', path: 'about/' },
+];
+const current = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const isActive = (path: string) => current === (`${base}${path}`.replace(/\/+$/, '') || '/');
+---
+<header class="border-b border-line/70">
+  <div class="mx-auto flex h-20 max-w-6xl items-center justify-between px-5 md:px-8">
+    <a href={base} class="font-mono text-lg font-bold tracking-tight text-ink" aria-label="Jarron, homepage">
+      jarron<span class="text-accent">_</span><span class="ml-2 text-xs font-normal text-muted">/dev</span>
+    </a>
+
+    <nav aria-label="Primary navigation" class="hidden items-center gap-8 sm:flex">
+      {links.map((link) => (
+        <a
+          href={`${base}${link.path}`}
+          aria-current={isActive(link.path) ? 'page' : undefined}
+          class:list={[
+            'text-sm transition-colors hover:text-accent',
+            isActive(link.path) ? 'text-accent' : 'text-muted',
+          ]}
+        >{link.name}</a>
+      ))}
+      <a href="https://github.com/JarronAnt" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-line px-3 py-2 text-sm text-ink transition-colors hover:border-accent/60">
+        GitHub ↗
+      </a>
+    </nav>
+
+    <details class="relative sm:hidden">
+      <summary class="cursor-pointer list-none rounded-lg border border-line px-3 py-2 text-sm text-ink">
+        Menu <span aria-hidden="true">☰</span>
+      </summary>
+      <nav aria-label="Mobile navigation" class="absolute right-0 top-12 z-20 flex w-44 flex-col gap-1 rounded-xl border border-line bg-surface p-2 shadow-xl">
+        {links.map((link) => (
+          <a href={`${base}${link.path}`} class="rounded-lg px-3 py-2 text-sm text-ink hover:bg-white/5">{link.name}</a>
+        ))}
+        <a href="https://github.com/JarronAnt" target="_blank" rel="noopener noreferrer" class="rounded-lg px-3 py-2 text-sm text-accent hover:bg-white/5">GitHub ↗</a>
+      </nav>
+    </details>
+  </div>
+</header>

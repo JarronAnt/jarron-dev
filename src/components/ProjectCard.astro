@@ -1,0 +1,25 @@
+---
+import type { Project } from '../data/projects';
+interface Props { project: Project; }
+const { project } = Astro.props;
+---
+<article class="flex h-full flex-col rounded-2xl border border-line bg-surface/60 p-6 transition-colors hover:border-accent/40">
+  <div class="mb-5 flex flex-wrap items-center justify-between gap-2">
+    <span class="font-mono text-[11px] uppercase tracking-widest text-accent">{project.category}</span>
+    <span class="rounded-full border border-line px-2.5 py-1 text-[11px] text-muted">{project.status}</span>
+  </div>
+  <h3 class="mb-3 text-xl font-semibold tracking-tight text-ink">{project.name}</h3>
+  <p class="mb-6 flex-1 text-sm leading-7 text-muted">{project.description}</p>
+  <div class="mb-5 flex flex-wrap gap-2">
+    {project.stack.map((tech) => (
+      <span class="rounded-md bg-white/5 px-2 py-1 font-mono text-[11px] text-muted">{tech}</span>
+    ))}
+  </div>
+  {project.repo ? (
+    <a href={project.repo} target="_blank" rel="noopener noreferrer" class="w-fit text-sm font-medium text-accent hover:underline">
+      View source ↗
+    </a>
+  ) : (
+    <span class="text-xs text-muted">Technical write-up planned</span>
+  )}
+</article>

@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { projects } from '../data/projects';
+---
+<BaseLayout title="Projects" description="Projects in compiler engineering, optimization, emulation, and simulation systems.">
+  <section class="py-20">
+    <p class="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-accent">Selected repositories</p>
+    <h1 class="text-5xl font-semibold tracking-tight">Projects<span class="text-accent">.</span></h1>
+    <p class="mt-5 max-w-2xl leading-8 text-muted">Projects I've built or am actively developing, from compilers and virtual machines to procedural simulation systems.</p>
+  </section>
+  <section class="grid gap-5 border-t border-line/70 py-10 md:grid-cols-2 xl:grid-cols-3">
+    {projects.map((project) => <ProjectCard project={project} />)}
+  </section>
+</BaseLayout>
