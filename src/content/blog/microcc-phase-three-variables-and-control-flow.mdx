@@ -1,0 +1,222 @@
+---
+title: "MicroCC Phase 3: Variables, Scopes, and Control Flow"
+description: "Turning MicroCC from an expression compiler into a compiler that can maintain local state, execute branches and loops, and generate structured AArch64 control flow."
+publishedAt: 2026-11-17
+tags: ["Compilers", "C++", "AArch64", "Parsing", "Code Generation"]
+project: microcc
+series: "Building MicroCC"
+seriesOrder: 3
+draft: false
+---
+
+In the first two phases of [MicroCC](https://github.com/JarronAnt/MicroCC), I built the path from C source text to an executable: tokenization, recursive-descent parsing, an abstract syntax tree (AST), and native AArch64 assembly generation. By Phase 2B, the compiler could handle fairly involved integer expressions, including precedence, bitwise operations, short-circuit logic, and the conditional operator.
+
+But there was a fundamental limitation: programs couldn't *remember* anything. An expression could compute a result, but there were no local variables to hold intermediate values, no blocks to introduce scopes, and no statements to make decisions or repeat work.
+
+**Phase 3 changes that.** MicroCC now has the core machinery for local state and structured execution: declarations, assignments, lexical scopes, conditionals, loops, and loop-control statements. This is the point where a collection of expression features starts to feel like a small programming language.
+
+## What Phase 3 adds
+
+The scope of this phase is intentionally limited to local, signed 32-bit `int` values, but it introduces several closely related language features:
+
+| Area | Implemented in Phase 3 |
+| --- | --- |
+| Local state | `int` declarations, optional initialization, variable reads |
+| Mutation | `=`, compound assignments, prefix and postfix `++` / `--` |
+| Scope | Nested `{ ... }` blocks, lexical lookup, shadowing |
+| Statements | Empty statements, expression statements, `return` |
+| Branching | `if` and `else`, including nested conditionals |
+| Loops | `while`, `do ... while`, and `for` |
+| Loop control | `break` and `continue` |
+| Backend | Fixed AArch64 stack frames, local slots, branch labels, shared return epilogue |
+
+These are additions to the existing Phase 2B expression compiler—not a replacement for its precedence rules or short-circuit semantics.
+
+## A small program that exercises the new compiler
+
+A useful end-to-end example is a program that sums the even integers below ten:
+
+```c
+int main() {
+    int sum = 0;
+
+    for (int i = 0; i < 10; i++) {
+        if (i % 2 == 0) {
+            sum += i;
+        }
+    }
+
+    return sum;
+}
+```
+
+The result should be `20` (`0 + 2 + 4 + 6 + 8`). Although the program is short, it exercises most of the new pieces together: a local declaration, a `for`-loop initializer with its own scope, comparison, modulo, an `if` statement, compound assignment, postfix increment, and a final variable read.
+
+This is a much better milestone than merely accepting new syntax. The compiler has to preserve the meaning of all those operations through parsing, name resolution, and machine-code generation.
+
+## Giving variables an identity: symbols and scopes
+
+Before Phase 3, every meaningful leaf in an expression was effectively an integer literal. With local variables, an identifier such as `sum` needs to refer to a particular declaration—and the compiler must know where that declaration's value lives.
+
+I added scope-aware local symbol management to the parser. When it encounters a declaration, it allocates a slot for the local and associates the identifier with that slot. When it later parses an identifier expression, it searches visible scopes from the innermost one outward.
+
+That distinction matters for shadowing:
+
+```c
+int main() {
+    int value = 4;
+
+    {
+        int value = 9;
+        value++;
+    }
+
+    return value; // 4, not 10
+}
+```
+
+The inner `value` is a separate binding. It does not overwrite the outer variable simply because they share a spelling. In the Phase 3 design, parsed variable expressions carry a resolved local offset, so the code generator doesn't need to repeat lexical name lookup.
+
+The parser also enforces scope-related errors: reading an undeclared variable or redeclaring a local in the same scope should fail at compile time. Conversely, shadowing in a nested scope is valid.
+
+A `for` declaration deserves particular attention:
+
+```c
+for (int i = 0; i < 10; i++) {
+    // i is visible here
+}
+// i is no longer in scope here
+```
+
+Its initializer introduces a scope that covers the loop's condition, increment expression, and body—not the statements that follow the loop.
+
+## Assignments are expressions, not just statements
+
+C's assignment syntax has a subtle consequence for the AST: an assignment produces a value. Consider:
+
+```c
+int main() {
+    int a = 0;
+    int b = 0;
+
+    a = b = 7;
+    return a + b; // 14
+}
+```
+
+The parser must associate this as `a = (b = 7)`, not `(a = b) = 7`. The right-hand assignment stores `7` in `b` *and evaluates to `7`*, allowing the outer assignment to store the same value in `a`.
+
+That introduces three separate responsibilities:
+
+1. **Parsing:** assignment is right-associative and has its proper place in the precedence hierarchy.
+2. **Validation:** the left side must be a valid, assignable target. An expression like `(a + b) = 3` must be rejected.
+3. **Code generation:** the result of the assignment expression must remain available to enclosing expressions.
+
+Compound assignments such as `sum += i` combine a read, an operation, and a write. Prefix and postfix updates require one more distinction: `++x` yields the new value, while `x++` yields the old one, even though both modify the variable.
+
+```c
+int main() {
+    int x = 4;
+    int before = x++; // before = 4, x = 5
+    int after = ++x;  // after = 6, x = 6
+    return before * 10 + after; // 46
+}
+```
+
+These rules are easy to miss when looking only at parsing. They are really rules about how expressions evaluate at runtime.
+
+## Moving from expression trees to statement trees
+
+Phase 2B already generated conditional branches for logical `&&`, `||`, and `?:`. Phase 3 extends that idea to full statements, represented explicitly in the AST.
+
+The new statement nodes distinguish blocks, declarations, expression statements, `if`, `while`, `do-while`, `for`, `break`, and `continue`. This gives the backend enough structure to emit the right labels and branches without trying to reconstruct control flow from a flat stream of tokens.
+
+For example, a `while` loop conceptually lowers to:
+
+```text
+loop_condition:
+    evaluate condition
+    if false, branch to loop_end
+    execute body
+    branch to loop_condition
+loop_end:
+```
+
+*A conceptual control-flow sketch, not verbatim MicroCC assembly.*
+
+A `for` loop adds an initializer before the first condition check and an increment step after each normal iteration. A `do-while` loop executes its body before the first condition check.
+
+`continue` is where these differences become especially important:
+
+| Loop form | `continue` jumps to |
+| --- | --- |
+| `while` | The condition check |
+| `do ... while` | The condition check after the body |
+| `for` | The increment expression, then the condition |
+
+`break`, by contrast, jumps to the loop's exit label. The parser rejects `break` or `continue` outside a loop instead of leaving the backend to generate meaningless branches.
+
+## AArch64 code generation: locals need a stack frame
+
+Generating arithmetic into `w0` was enough when every program evaluated a single return expression. Local state requires storage that persists across multiple statements, and nested control flow requires reliable cleanup when a function returns early.
+
+For Phase 3, I kept the backend deliberately straightforward:
+
+- The function establishes a frame using `x29` (frame pointer) and preserves `x30` (link register).
+- Each local `int` is assigned a unique slot at a fixed offset from the frame pointer. The current implementation uses **8-byte slots** for **32-bit values**, prioritizing simple addressing over compact layout.
+- The total local storage area is rounded to maintain **16-byte stack alignment**.
+- Variable reads and writes load from and store to the corresponding frame slots.
+- Every `return` branches to a **shared epilogue**, which restores the frame and returns from the function.
+
+This avoids a common trap: allowing one early return path to restore the stack correctly while another leaves it unbalanced.
+
+The tradeoff is efficiency. A fixed stack slot for each lexical binding can use more space than necessary, and repeated loads and stores are not competitive with register allocation. For an educational compiler, however, the layout is easy to reason about and gives later optimization work a stable baseline.
+
+## Testing semantics rather than just accepting syntax
+
+A parser can recognize `for (...)` without producing a correct executable. Phase 3 therefore needs tests at several levels: successful compilation, correct native behavior, and expected compiler diagnostics.
+
+The positive cases cover behaviors such as:
+
+- Local declarations, initializers, and reads.
+- Assignment associativity and compound assignment results.
+- Prefix versus postfix increment/decrement.
+- Block shadowing and loop-local scope.
+- True and false `if` branches, including nested `else` cases.
+- `while`, `do-while`, and `for` loops.
+- `break`, `continue`, and early returns inside nested statements.
+- End-to-end programs like the even-number sum above.
+
+The negative cases are just as valuable: undeclared identifiers, duplicate declarations in the same scope, invalid assignment targets, and `break` or `continue` outside a loop should produce diagnostics instead of a broken executable.
+
+The project uses CMake and CTest for integration testing. On an Apple Silicon Mac, the regression suite can be run with:
+
+```bash
+cmake -S . -B build -G Ninja
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The important distinction is between **generating valid AArch64 assembly** and **executing the resulting program and checking its behavior**. Both matter. Compilation tests catch malformed output, while native execution tests ensure that the generated program actually behaves as expected.
+
+## What Phase 3 taught me about compiler architecture
+
+The biggest change is conceptual: **syntax, binding, storage, and control flow are separate concerns**.
+
+A declaration introduces a name in a lexical scope. Name resolution binds a use of that name to a specific variable. Frame layout gives the variable somewhere to live at runtime. Code generation then turns statements and expression semantics into instructions and branches. Getting one of those layers right doesn't compensate for a mistake in another.
+
+A few choices proved particularly useful in keeping those responsibilities clear:
+
+- **Resolve names during parsing.** The backend works with local slots rather than raw identifier strings.
+- **Represent statements explicitly.** `IfStmt` and `ForStmt` carry meaning that would be difficult to recover later from a flat token stream.
+- **Keep a simple frame layout first.** Correctness is more valuable than clever allocation at this stage.
+- **Use one return epilogue.** Cleanup stays consistent across every return path.
+- **Test negative cases.** Clear failures for invalid C are part of compiler correctness, not an optional extra.
+
+## What comes next
+
+MicroCC is still intentionally a **subset C compiler**, not a complete implementation of the language. The next meaningful extensions are function parameters and calls, richer type handling, and eventually pointers and arrays. Farther down the roadmap are an intermediate representation, optimization passes, and register allocation—areas that also connect naturally to my work on [OptForge](https://github.com/JarronAnt/OptForge).
+
+Phase 3 establishes the infrastructure those features will need. With local bindings, structured statements, and a consistent stack-frame model in place, future work can focus on making the language broader and the generated code better rather than rebuilding the foundations.
+
+**Source code:** [MicroCC on GitHub](https://github.com/JarronAnt/MicroCC) · [Compiler implementation](https://github.com/JarronAnt/MicroCC/tree/master/src) · [Integration tests](https://github.com/JarronAnt/MicroCC/tree/master/tests)

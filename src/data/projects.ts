@@ -18,12 +18,12 @@ export const projects: Project[] = [
   {
     slug: 'microcc', name: 'MicroCC', category: 'Compiler engineering',
     description: 'An educational C compiler written in modern C++ that generates native AArch64 assembly for Apple Silicon.',
-    stack: ['C++20', 'CMake', 'AArch64', 'CTest'], status: 'In progress', milestone: 'Phase 2B complete',
+    stack: ['C++20', 'CMake', 'AArch64', 'CTest'], status: 'In progress', milestone: 'Phase 3 complete',
     repo: 'https://github.com/JarronAnt/MicroCC', featured: true,
-    summary: 'MicroCC currently lexes, parses, and compiles integer-returning zero-argument C functions. Phase 2B includes a rich set of expression operators and direct ARM64 code generation. The project aims to grow into a capable C compiler without skipping the fundamentals.',
-    highlights: ['Lexer with source positions and longest-match operators', 'Recursive-descent parser and uniquely owned AST nodes', 'Arithmetic, comparison, bitwise, logical, shift, conditional and comma expressions', 'Correct short-circuiting via conditional ARM64 branches', 'Native macOS Mach-O executable generation and assembly-only mode', '26 CTest integration cases including diagnostic failures'],
+    summary: 'MicroCC compiles a growing subset of C to native AArch64 assembly on Apple Silicon. Phase 3 adds local int variables, lexical scopes, assignments, conditional statements, and loops on top of the existing expression compiler.',
+    highlights: ['Lexer with source positions and longest-match operators', 'Recursive-descent parser and uniquely owned AST nodes', 'Arithmetic, comparison, bitwise, logical, shift, conditional and comma expressions', 'Correct short-circuiting via conditional ARM64 branches', 'Native macOS Mach-O executable generation and assembly-only mode', 'Phase 3 local variable support, stack frames, and shared return epilogue', 'Nested blocks, shadowing, if/else, while, do-while, and for loops', 'Compound assignments, increment/decrement, break, and continue', 'CTest integration coverage for valid programs and invalid C diagnostics'],
     architecture: 'C source → Lexer → Parser → AST → AArch64 codegen → Apple Clang (assemble/link)',
-    next: ['Variables, assignments, scopes, and control-flow statements', 'Function parameters/calls and richer C types', 'Later: IR, optimization, and register allocation'],
+    next: ['Function parameters, calls, and richer C types', 'Pointers, arrays, and more complete C semantics', 'Later: IR, optimization, and register allocation'],
   },
   {
     slug: 'optforge', name: 'OptForge', category: 'LLVM / optimization',
