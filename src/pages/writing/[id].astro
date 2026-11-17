@@ -1,0 +1,160 @@
+---
+import { render } from 'astro:content';
+import type { BlogPost } from '../../lib/blog';
+import { formatDate, getPublishedPosts, getReadingMinutes, postPath, projectPath, sitePath, tagPath } from '../../lib/blog';
+import { projects } from '../../data/projects';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+
+export async function getStaticPaths() {
+  const posts = await getPublishedPosts();
+  return posts.map((post) => ({ params: { id: post.id }, props: { post } }));
+}
+
+interface Props { post: BlogPost }
+const { post } = Astro.props;
+const { Content, headings } = await render(post);
+const toc = headings.filter((heading) => heading.depth === 2 || heading.depth === 3);
+const relatedProject = projects.find((project) => project.slug === post.data.project);
+const allPublished = await getPublishedPosts();
+const seriesPosts = post.data.series
+  ? allPublished.filter((candidate) => candidate.data.series === post.data.series)
+      .sort((a, b) => (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0))
+  : [];
+const seriesIndex = seriesPosts.findIndex((candidate) => candidate.id === post.id);
+const previousInSeries = seriesIndex > 0 ? seriesPosts[seriesIndex - 1] : undefined;
+const nextInSeries = seriesIndex >= 0 ? seriesPosts[seriesIndex + 1] : undefined;
+const otherPosts = allPublished
+  .filter((candidate) => candidate.id !== post.id)
+  .sort((a, b) => Number(b.data.project === post.data.project) - Number(a.data.project === post.data.project))
+  .slice(0, 2);
+---
+<BaseLayout title={post.data.title} description={post.data.description} type="article" publishedAt={post.data.publishedAt} updatedAt={post.data.updatedAt}>
+  <div class="py-10 md:py-14">
+    <a href={sitePath('writing/')} class="font-mono text-xs text-muted transition-colors hover:text-accent">← Back to writing</a>
+
+    <header class="mt-10 max-w-3xl border-b border-line/70 pb-10">
+      <p class="mb-4 font-mono text-xs uppercase tracking-[0.2em] text-accent">Engineering journal{post.data.series ? ` / ${post.data.series}` : ''}</p>
+      <h1 class="text-4xl font-semibold leading-[1.15] tracking-tight text-ink md:text-5xl">{post.data.title}</h1>
+      <p class="mt-6 text-base leading-8 text-muted md:text-lg">{post.data.description}</p>
+      <div class="mt-6 flex flex-wrap items-center gap-2 font-mono text-xs text-muted">
+        <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+        <span aria-hidden="true">·</span>
+        <span>{getReadingMinutes(post.body)} min read</span>
+        <span aria-hidden="true">·</span>
+        <span>By Jarron Anthonipillai</span>
+        {post.data.updatedAt && <><span aria-hidden="true">·</span><span>Updated {formatDate(post.data.updatedAt)}</span></>}
+      </div>
+      <div class="mt-6 flex flex-wrap items-center gap-2">
+        {post.data.tags.map((tag) => <a href={tagPath(tag)} class="rounded-full border border-line px-3 py-1.5 font-mono text-xs text-muted hover:border-accent/50 hover:text-accent">{tag}</a>)}
+      </div>
+    </header>
+
+    <div class="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1fr)_220px] lg:gap-16">
+      <article class="min-w-0">
+        {relatedProject && (
+          <a href={projectPath(relatedProject.slug)} class="mb-8 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-accent/25 bg-accent/5 px-5 py-4 text-sm hover:border-accent/50">
+            <span class="text-muted">Part of <strong class="font-semibold text-ink">{relatedProject.name}</strong></span>
+            <span class="font-mono text-xs text-accent">Project overview ↗</span>
+          </a>
+        )}
+
+        {toc.length > 0 && (
+          <details class="mb-8 rounded-xl border border-line p-4 lg:hidden">
+            <summary class="cursor-pointer font-mono text-xs uppercase tracking-widest text-accent">On this page</summary>
+            <nav aria-label="Table of contents" class="mt-4 space-y-3">
+              {toc.map((heading) => <a href={`#${heading.slug}`} class:list={['block text-sm text-muted hover:text-accent', heading.depth === 3 && 'pl-4']}>{heading.text}</a>)}
+            </nav>
+          </details>
+        )}
+
+        <div class="prose-tech" id="article-content"><Content /></div>
+        <div class="mt-9 flex items-center justify-between gap-3 border-t border-line/70 pt-5 text-xs text-muted">
+          <p>Found this useful? Share the article with someone building similar systems.</p>
+          <button type="button" data-copy-link class="shrink-0 rounded-md border border-line px-3 py-2 font-mono text-xs text-ink hover:border-accent hover:text-accent">Copy link</button>
+        </div>
+
+        {seriesPosts.length > 1 && (
+          <nav aria-label="Article series" class="mt-12 rounded-xl border border-line bg-surface/50 p-6">
+            <p class="mb-3 font-mono text-xs uppercase tracking-widest text-accent">{post.data.series}</p>
+            <p class="mb-5 text-sm text-muted">Part {seriesIndex + 1} of {seriesPosts.length}</p>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div>{previousInSeries && <a href={postPath(previousInSeries)} class="text-sm text-ink hover:text-accent">← {previousInSeries.data.title}</a>}</div>
+              <div class="sm:text-right">{nextInSeries && <a href={postPath(nextInSeries)} class="text-sm text-ink hover:text-accent">{nextInSeries.data.title} →</a>}</div>
+            </div>
+          </nav>
+        )}
+
+        <footer class="mt-14 border-t border-line/70 pt-8">
+          <p class="font-mono text-xs uppercase tracking-widest text-accent">Keep exploring</p>
+          <div class="mt-4 flex flex-wrap gap-4 text-sm">
+            <a class="text-muted hover:text-accent" href={sitePath('writing/')}>← All articles</a>
+            {relatedProject && <a class="text-muted hover:text-accent" href={projectPath(relatedProject.slug)}>More on {relatedProject.name} ↗</a>}
+            <a class="text-muted hover:text-accent" href="https://github.com/JarronAnt" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+          </div>
+        </footer>
+      </article>
+
+      {toc.length > 0 && (
+        <aside class="hidden lg:block" aria-label="Article table of contents">
+          <nav class="sticky top-8 border-l border-line pl-5">
+            <p class="mb-5 font-mono text-xs uppercase tracking-widest text-accent">On this page</p>
+            <ul class="space-y-3">
+              {toc.map((heading) => (
+                <li class:list={[heading.depth === 3 && 'pl-3']}>
+                  <a href={`#${heading.slug}`} class="block text-sm leading-6 text-muted transition-colors hover:text-accent">{heading.text}</a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </aside>
+      )}
+    </div>
+
+    {otherPosts.length > 0 && (
+      <section class="mt-20 border-t border-line/70 pt-10" aria-labelledby="more-writing-heading">
+        <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <h2 id="more-writing-heading" class="text-2xl font-semibold">Continue reading</h2>
+          <a href={sitePath('writing/')} class="text-sm text-accent hover:underline">All articles ↗</a>
+        </div>
+        <div class="grid gap-5 md:grid-cols-2">
+          {otherPosts.map((other) => <ArticleCard post={other} compact />)}
+        </div>
+      </section>
+    )}
+  </div>
+</BaseLayout>
+
+<script>
+  // Copy article permalink (the browser URL includes GitHub Pages' base path).
+  const share = document.querySelector<HTMLButtonElement>('[data-copy-link]');
+  share?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      share.textContent = 'Copied';
+    } catch { share.textContent = 'Unable to copy'; }
+  });
+  // Enhancement only: code blocks remain readable and highlighted without JS.
+  document.querySelectorAll<HTMLElement>('.prose-tech pre').forEach((pre) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'code-frame';
+    pre.parentElement?.insertBefore(wrapper, pre);
+    wrapper.appendChild(pre);
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'copy-code';
+    button.textContent = 'Copy';
+    button.setAttribute('aria-label', 'Copy code to clipboard');
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(pre.textContent ?? '');
+        button.textContent = 'Copied';
+        button.setAttribute('aria-label', 'Code copied');
+      } catch {
+        button.textContent = 'Copy failed';
+      }
+    });
+    wrapper.appendChild(button);
+  });
+</script>

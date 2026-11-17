@@ -1,0 +1,99 @@
+---
+title: "OptForge Phase 1: My First LLVM Optimization Plugin"
+description: "Building an out-of-tree LLVM 22 New Pass Manager plugin in C++, from IR input to a tested transformation."
+publishedAt: 2026-11-16
+tags: ["LLVM", "C++", "Optimization"]
+project: optforge
+series: "Building OptForge"
+seriesOrder: 1
+draft: false
+---
+
+**OptForge** is my compiler optimization playground. Instead of building another frontend, this project starts with **LLVM IR** and changes the middle of a compiler pipeline. Phase 1 is intentionally narrow: write an out-of-tree function pass, load it with LLVM's New Pass Manager, transform instructions, and prove that the output is valid.
+
+The published repository targets **LLVM 22**, **C++17**, CMake, Ninja, and FileCheck. Its first pass is named `optforge-simplify` and implements scalar integer algebraic identities.
+
+## Where OptForge fits in a compiler
+
+```text
+Source language
+      |
+  Frontend + parsing
+      |
+      v
+    LLVM IR
+      |
+      v
+OptForge transformation pass  <-- Phase 1
+      |
+      v
+  Optimized LLVM IR
+      |
+      v
+LLVM code generation / target backend
+```
+
+MicroCC teaches me how to **produce** machine-oriented code from a language. OptForge teaches me what an optimizer is allowed to **change** while preserving program behavior. These are complementary, not competing, exercises.
+
+## What an out-of-tree plugin buys me
+
+An LLVM pass does not need to live inside LLVM's own source tree. The plugin is built as a loadable library and registered with the New Pass Manager. Running `opt` against sample `.ll` files provides a tight feedback loop: input IR, a named pass, output IR, and validation.
+
+A simplified command drawn from the repository's documented workflow:
+
+```bash
+export LLVM_ROOT="$(brew --prefix llvm@22)"
+cmake -S . -B build -G Ninja \
+  -DLLVM_DIR="$LLVM_ROOT/lib/cmake/llvm" \
+  -DCMAKE_CXX_COMPILER="$LLVM_ROOT/bin/clang++"
+cmake --build build
+
+PLUGIN="$(find build -type f \
+  \( -name 'OptForgePass.dylib' -o -name 'OptForgePass.so' \) \
+  -print -quit)"
+"$LLVM_ROOT/bin/opt" -load-pass-plugin "$PLUGIN" \
+  '-passes=function(optforge-simplify)' -verify-each -S \
+  examples/demo.ll -o build/demo.optimized.ll
+```
+
+On a Mac, using the same LLVM installation for headers, tools, and the plugin compiler helps avoid accidental toolchain mismatches. The project also uses `project(... LANGUAGES C CXX)` compatibility in its CMake setup because LLVM's own CMake configuration may inspect C-language headers.
+
+## First transformations: algebraic identities
+
+The pass recognizes simple expressions where a constant operand means the operation does not change its other operand:
+
+```llvm
+; Before: instruction has no effect on %x
+%sum = add i32 %x, 0
+ret i32 %sum
+
+; After: users can consume %x directly
+ret i32 %x
+```
+
+*This is a minimal illustrative IR comparison of the identity that the pass implements; it is not claimed to be a copied test fixture.*
+
+The Phase 1 rules also cover `sub x, 0`, `mul x, 1`, `and x, -1`, `or x, 0`, `xor x, 0`, shifts by zero, and integer division by one. It intentionally does **not** claim to be a general constant folder or dead-code eliminator.
+
+## Testing transformations
+
+Optimization bugs can be subtle because the output may *look* simpler but behave differently. The project's test approach combines **FileCheck** assertions against output IR with LLVM's `-verify-each` option, which checks structural IR validity after transformations.
+
+```bash
+ctest --test-dir build --output-on-failure
+```
+
+This is the difference between a compelling printout and a maintainable optimizer: tests specify the transformation's intended outcome and verify that the resulting IR remains structurally sound.
+
+## The remaining roadmap
+
+The published roadmap moves next into constant folding/propagation and dead-code elimination, then local value numbering, control-flow simplification, dominators, loop optimizations, and eventually composed pipelines and benchmarks. Those are **future phases**, not Phase 1 accomplishments.
+
+## What Phase 1 taught me
+
+- A pass is a small, testable unit of transformation inside a much larger compiler.
+- LLVM IR has precise rules; even obvious algebraic changes must respect type and instruction semantics.
+- Integration with `opt`, registration, and build tooling is itself valuable compiler engineering work.
+- A narrow, verifiable pass is a better foundation than prematurely implementing multiple optimization algorithms.
+
+**Source:** [OptForge repository](https://github.com/JarronAnt/OptForge) and [README with build, supported identities, and roadmap](https://github.com/JarronAnt/OptForge#readme). [LLVM New Pass Manager documentation](https://llvm.org/docs/WritingAnLLVMNewPMPass.html).

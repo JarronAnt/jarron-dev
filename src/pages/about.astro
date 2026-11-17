@@ -1,19 +1,34 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { sitePath } from '../lib/blog';
 ---
-<BaseLayout title="About" description="About Jarron Anthonipillai and his interests in compiler engineering and systems software.">
-  <section class="max-w-3xl py-20">
-    <p class="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-accent">The person behind the code</p>
-    <h1 class="text-5xl font-semibold tracking-tight">About<span class="text-accent">.</span></h1>
-    <div class="mt-8 space-y-6 text-base leading-8 text-muted">
-      <p>I'm Jarron Anthonipillai, a Toronto-based software engineer with a background in mathematics and statistics from the University of Toronto.</p>
-      <p>My current focus is compiler engineering and low-level systems programming. I'm particularly interested in parsers, code generation, LLVM, runtime systems, optimization, and the engineering trade-offs behind performant software.</p>
-      <p>I learn best by building. Projects such as MicroCC, OptForge, ASCII Universe, Rusty8, and my LC-3 VM are opportunities to explore how these systems work from the inside.</p>
-      <p>This site is a public engineering notebook: what I'm attempting, what I've learned, and what I'd change next time.</p>
-    </div>
-    <div class="mt-10 flex flex-wrap gap-3">
-      <a href="https://github.com/JarronAnt" target="_blank" rel="noopener noreferrer" class="rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-bg hover:brightness-110">GitHub ↗</a>
-      <a href="https://www.linkedin.com/in/jarronanthonipillai/" target="_blank" rel="noopener noreferrer" class="rounded-lg border border-line px-5 py-3 text-sm font-medium text-ink hover:border-accent/60">LinkedIn ↗</a>
-    </div>
+<BaseLayout title="About" description="About Jarron Anthonipillai: software engineer building compilers, LLVM passes, simulations, and emulators.">
+  <section class="border-b border-line/70 py-16 md:py-20">
+    <p class="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-accent">About the developer</p>
+    <h1 class="text-5xl font-semibold tracking-tight">Hi, I'm Jarron<span class="text-accent">.</span></h1>
+    <p class="mt-6 max-w-3xl text-lg leading-9 text-muted">I'm a software engineer based in Toronto, with a University of Toronto BSc in Mathematics and Statistics. My recent work explores compilers, LLVM, low-level programming, and simulation architecture.</p>
   </section>
+  <div class="grid gap-14 py-14 md:grid-cols-[1.5fr_1fr]">
+    <div class="space-y-7 leading-8 text-muted">
+      <h2 class="text-2xl font-semibold text-ink">What this site is for</h2>
+      <p>I wanted a place where the work behind a project is as visible as the result. A README can explain what an application does; a technical journal can explain why I chose a recursive-descent parser, how a compiler pass preserves semantics, or what changes when autonomous workers have to reserve physical resources.</p>
+      <p>My interests sit around compilers and language tooling, C++ systems programming, virtual machines, and simulation. Projects like <a class="text-accent hover:underline" href={sitePath('projects/microcc/')}>MicroCC</a>, <a class="text-accent hover:underline" href={sitePath('projects/optforge/')}>OptForge</a>, and <a class="text-accent hover:underline" href={sitePath('projects/ascii-universe/')}>ASCII Universe</a> give me practical ways to explore those topics.</p>
+      <p>I aim to document design decisions, failures, tests, limitations, and improvements—not just polished milestones. Code and project links are included so the work is inspectable.</p>
+    </div>
+    <aside class="space-y-5">
+      <div class="rounded-xl border border-line bg-surface/60 p-6">
+        <p class="font-mono text-xs uppercase tracking-widest text-accent">Background</p>
+        <p class="mt-4 font-semibold text-ink">BSc, Mathematics & Statistics</p>
+        <p class="mt-1 text-sm leading-6 text-muted">University of Toronto</p>
+      </div>
+      <div class="rounded-xl border border-line bg-surface/60 p-6">
+        <p class="font-mono text-xs uppercase tracking-widest text-accent">Find me online</p>
+        <div class="mt-4 flex flex-col gap-3 text-sm">
+          <a href="https://github.com/JarronAnt" target="_blank" rel="noopener noreferrer" class="text-ink hover:text-accent">GitHub ↗</a>
+          <a href="https://www.linkedin.com/in/jarronanthonipillai/" target="_blank" rel="noopener noreferrer" class="text-ink hover:text-accent">LinkedIn ↗</a>
+          <a href="mailto:jarronanthonipillai@gmail.com" class="text-ink hover:text-accent">Email ↗</a>
+        </div>
+      </div>
+    </aside>
+  </div>
 </BaseLayout>

@@ -1,25 +1,24 @@
 ---
 import type { Project } from '../data/projects';
-interface Props { project: Project; }
-const { project } = Astro.props;
+import { projectPath } from '../lib/blog';
+interface Props { project: Project; articleCount?: number; }
+const { project, articleCount = 0 } = Astro.props;
 ---
 <article class="flex h-full flex-col rounded-2xl border border-line bg-surface/60 p-6 transition-colors hover:border-accent/40">
   <div class="mb-5 flex flex-wrap items-center justify-between gap-2">
     <span class="font-mono text-[11px] uppercase tracking-widest text-accent">{project.category}</span>
     <span class="rounded-full border border-line px-2.5 py-1 text-[11px] text-muted">{project.status}</span>
   </div>
-  <h3 class="mb-3 text-xl font-semibold tracking-tight text-ink">{project.name}</h3>
+  <div class="mb-3 font-mono text-xs text-muted">{project.milestone}</div>
+  <h3 class="mb-3 text-xl font-semibold tracking-tight text-ink">
+    <a href={projectPath(project.slug)} class="hover:text-accent">{project.name}</a>
+  </h3>
   <p class="mb-6 flex-1 text-sm leading-7 text-muted">{project.description}</p>
   <div class="mb-5 flex flex-wrap gap-2">
-    {project.stack.map((tech) => (
-      <span class="rounded-md bg-white/5 px-2 py-1 font-mono text-[11px] text-muted">{tech}</span>
-    ))}
+    {project.stack.map((tech) => <span class="rounded-md bg-white/5 px-2 py-1 font-mono text-[11px] text-muted">{tech}</span>)}
   </div>
-  {project.repo ? (
-    <a href={project.repo} target="_blank" rel="noopener noreferrer" class="w-fit text-sm font-medium text-accent hover:underline">
-      View source ↗
-    </a>
-  ) : (
-    <span class="text-xs text-muted">Technical write-up planned</span>
-  )}
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <a href={projectPath(project.slug)} class="text-sm font-medium text-accent hover:underline">Details {articleCount ? `· ${articleCount} ${articleCount === 1 ? 'article' : 'articles'}` : ''} ↗</a>
+    {project.repo && <a href={project.repo} target="_blank" rel="noopener noreferrer" class="text-sm text-muted hover:text-accent">Source ↗</a>}
+  </div>
 </article>

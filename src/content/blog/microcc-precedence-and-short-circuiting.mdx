@@ -1,0 +1,85 @@
+---
+title: "MicroCC: Operator Precedence, Short-Circuiting, and ARM64"
+description: "How MicroCC's Phase 2B parser and backend preserve the meaning of conditional, logical, bitwise, and arithmetic expressions."
+publishedAt: 2026-11-15
+tags: ["Compilers", "Parsing", "AArch64", "C++"]
+project: microcc
+series: "Building MicroCC"
+seriesOrder: 2
+draft: false
+---
+
+The jump from `2 + 3 * 4` to a useful expression compiler looks small on paper. In practice, it connects three independent problems: parsing precedence, preserving evaluation semantics, and choosing machine instructions.
+
+This is a technical follow-up to the [MicroCC architecture overview](https://github.com/JarronAnt/MicroCC). The published code is currently at **Phase 2B**, which provides a good point to inspect the contracts between the parser and backend.
+
+## Representing the precedence hierarchy
+
+MicroCC uses a separate recursive-descent stage for each precedence group. From low to high, the published grammar covers:
+
+| Level | Operators |
+| --- | --- |
+| Sequencing | `,` |
+| Conditional | `?:` |
+| Logical | `||`, `&&` |
+| Bitwise | `|`, `^`, `&` |
+| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=` |
+| Shift | `<<`, `>>` |
+| Arithmetic | `+`, `-`, `*`, `/`, `%` |
+| Unary / primary | `+`, `-`, `!`, `~`, literals, parentheses |
+
+The recursive structure naturally gives multiplication higher precedence than addition. Right-associative conditional expressions need different recursion from the left-associative arithmetic operators.
+
+```c
+int main() {
+    return 1 ? 2 : 3 ? 4 : 5;
+}
+```
+
+The second `?:` belongs to the **false** branch of the first conditional. If the parser groups it incorrectly, the AST is wrong before any assembly is generated.
+
+## Why logical operators are not ordinary arithmetic
+
+Consider a test included in the project's documented examples:
+
+```c
+int main() {
+    return (0 && (10 / 0)) || (1 && 5);
+}
+```
+
+The result is `1`. Just as importantly, the division by zero must never run. `&&` skips its right operand when the left is false; `||` skips the right operand when the left is true.
+
+That means a backend cannot compile logical expressions by eagerly calculating both children and combining their integer results. Instead it emits control flow: conditional branches and labels. The conditional `?:` operator follows the same principle: execute only the selected branch.
+
+```text
+Evaluate left operand
+       |
+   false for &&? ---- yes --> result = 0
+       |
+       no
+       v
+Evaluate right operand
+       |
+Normalize to Boolean result
+```
+
+*This diagram summarizes the semantics; it is not a verbatim dump of MicroCC's emitted assembly.*
+
+## Working with AArch64 registers
+
+The current backend puts expression results in `w0`. For general binary expressions, it evaluates the left side, saves it in a stack slot, evaluates the right, restores the left to `w9`, then performs the instruction. It maintains the **16-byte stack alignment** expected by the macOS AArch64 ABI.
+
+The backend uses instructions including `add`, `sub`, `mul`, `sdiv`, `msub`, `and`, `orr`, `eor`, `lsl`, `asr`, `cmp`, `cset`, `cbz`, and `cbnz`. Remainder is constructed from divide and multiply-subtract rather than relying on a native remainder instruction.
+
+## Testing semantic behavior, not just syntax
+
+Phase 2B's integration tests cover precedence across categories, negative and signed arithmetic, bitwise expressions, shifts, nested conditionals, short-circuit behavior, and malformed source. The important distinction is **behavioral correctness**: parsing without an error does not prove that the generated program returns the right answer.
+
+The repository currently registers **26 CTest cases**, including three expected-failure diagnostic cases. That is a strong baseline for growing the language incrementally.
+
+## What this sets up next
+
+Variables and `if`/`while`/`for` statements will make control flow a first-class part of the program AST instead of something needed mainly to implement expression semantics. From there, scope management, symbol lookup, and robust calling conventions become natural topics to address.
+
+**Source:** [MicroCC README](https://github.com/JarronAnt/MicroCC#readme), [tests](https://github.com/JarronAnt/MicroCC/tree/master/tests), [source tree](https://github.com/JarronAnt/MicroCC/tree/master/src). The examples above are presented as tests/semantic illustrations; generated assembly is described rather than fabricated as an exact output transcript.

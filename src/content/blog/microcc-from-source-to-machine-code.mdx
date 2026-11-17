@@ -1,0 +1,107 @@
+---
+title: "MicroCC: Building a C Compiler from Source to Machine Code"
+description: "A tour of MicroCC through Phase 2B: tokenization, recursive-descent parsing, AST construction, ARM64 assembly, and executable output."
+publishedAt: 2026-11-16
+tags: ["Compilers", "C++", "AArch64"]
+project: microcc
+series: "Building MicroCC"
+seriesOrder: 1
+draft: false
+---
+
+A compiler is a good way to discover how much work sits between a language's syntax and a running program. I started **MicroCC** as a small, understandable implementation of a C compiler in **C++20**. The long-term ambition is to compile more realistic C programs, but it matters to be precise about what works today.
+
+At **Phase 2B**, MicroCC compiles a limited subset of C: a zero-argument `int` function containing a return statement with a surprisingly rich integer expression. It targets **AArch64 on Apple Silicon macOS**, produces native assembly, and invokes Apple Clang to assemble and link the executable. It is not yet a general-purpose, conforming C compiler.
+
+## The pipeline I have today
+
+```text
+.c source file
+     |
+     v
+Lexer --> tokens + source locations
+     |
+     v
+Recursive-descent parser
+     |
+     v
+Abstract syntax tree (AST)
+     |
+     v
+ARM64 code generator
+     |
+     v
+Assembly --> Apple Clang assembler/linker --> Mach-O executable
+```
+
+The useful boundary is between **understanding a program** and **emitting instructions for it**. The lexer recognizes characters as tokens; the parser imposes language structure; the AST represents that structure; and the backend generates target instructions. Keeping those responsibilities separate means I can grow the language without rewriting everything at once.
+
+## Phase 1: recognizing tokens
+
+The first milestone established the CMake/Ninja build, a command-line driver, file loading, and a lexer. A token records its kind and source position so diagnostics can identify where a problem started. The lexer handles identifiers, decimal integer literals, punctuation, single- and multi-character operators, comments, and whitespace.
+
+One subtle part is the **longest-match rule**: `==` must form one equality token rather than two assignment tokens. The same distinction matters for `!=`, `<=`, `>=`, `<<`, `>>`, `&&`, and `||`. This is easy to overlook when implementing a scanner a character at a time.
+
+The `--dump-tokens` option is handy during development because it lets me check tokenization independently from parsing and code generation.
+
+## Phase 2A: turning expressions into trees
+
+A parser must interpret:
+
+```c
+int main() {
+    return 2 + 3 * 4;
+}
+```
+
+as `2 + (3 * 4)`, not `(2 + 3) * 4`. MicroCC uses a **handwritten recursive-descent parser** with functions for individual precedence levels. The AST distinguishes `IntegerLiteral`, `UnaryExpr`, `BinaryExpr`, and `ConditionalExpr`, with C++ `std::unique_ptr` managing node ownership.
+
+```text
+ReturnStmt
+  BinaryExpr(+)
+    IntegerLiteral(2)
+    BinaryExpr(*)
+      IntegerLiteral(3)
+      IntegerLiteral(4)
+```
+
+That structure matters more than the printed syntax: once the tree is correct, different backends can traverse it without needing to rediscover precedence rules.
+
+## Phase 2B: an expression language worth testing
+
+The second parser expansion adds remainder, relational and equality comparisons, logical operations, bitwise operations, shifts, conditional expressions, and the comma operator. Operator precedence and associativity are preserved. `&&`, `||`, and `?:` introduce an additional requirement: **not every subtree should always execute**.
+
+The ARM64 backend handles this with conditional branches, while arithmetic expressions generally use temporary stack slots to preserve intermediate values. The stack strategy is deliberately simple; register allocation is a later problem.
+
+## A runnable milestone
+
+A minimal program is enough to exercise the full pipeline:
+
+```c
+int main() {
+    return (10 + 5) * 2 - 24 / (3 + 1);
+}
+```
+
+```bash
+cmake -S . -B build -G Ninja
+cmake --build build
+./build/microcc examples/phase2b.c -o phase2b
+./phase2b
+printf '%s\n' "$?"
+```
+
+The repository includes a **26-test CTest suite** spanning early compilation, arithmetic, expanded operators, and expected diagnostic failures. Exit-code tests are a useful first acceptance test, although the process exit status is not a substitute for checking arbitrary 32-bit results.
+
+## What is not implemented yet
+
+As of this milestone, there are **no variables, assignments, loops, parameters, pointers, arrays, preprocessing, or optimization passes**. Those missing pieces define the next phase rather than hidden limitations in this one. The next substantial step is variables and control flow, which will make the AST and backend manage state instead of just evaluating return expressions.
+
+## What I learned
+
+- A correct token stream is necessary but not sufficient: precedence and associativity are semantic structure, not formatting.
+- AST ownership becomes a design concern immediately, even in a tiny compiler.
+- A working native backend does not require starting with a full IR, but the complexity of direct code generation becomes visible quickly.
+- Negative tests matter as much as successful compilation: a small compiler should reject unsupported syntax clearly.
+
+**Source and references:** [MicroCC repository](https://github.com/JarronAnt/MicroCC), [README / phase status](https://github.com/JarronAnt/MicroCC#readme), and the [compiler sources](https://github.com/JarronAnt/MicroCC/tree/master/src). These are the **Phase 2B** capabilities described by the published repository, not speculative Phase 3 features.

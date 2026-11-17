@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<defs>
+<linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#121d27"/><stop offset="1" stop-color="#0b1016"/></linearGradient>
+<radialGradient id="r"><stop stop-color="#1c3933" stop-opacity=".85"/><stop offset="1" stop-color="#0b1016" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="1200" height="630" fill="url(#g)"/>
+<circle cx="920" cy="50" r="480" fill="url(#r)"/>
+<path d="M64 98h1072M64 530h1072" stroke="#35404a" stroke-width="2"/>
+<text x="68" y="170" fill="#9dceb9" font-family="monospace" font-size="28" letter-spacing="4">JARRON / DEV</text>
+<text x="65" y="285" fill="#f0f2f4" font-family="Arial,sans-serif" font-size="64" font-weight="700">Building things.</text>
+<text x="65" y="375" fill="#f0f2f4" font-family="Arial,sans-serif" font-size="64" font-weight="700">Breaking things.</text>
+<text x="65" y="465" fill="#9dceb9" font-family="Arial,sans-serif" font-size="64" font-weight="700">Understanding things.</text>
+<text x="68" y="572" fill="#a4afbd" font-family="monospace" font-size="21">COMPILERS  ·  LLVM  ·  C++  ·  SIMULATION  ·  RUST</text>
+</svg>

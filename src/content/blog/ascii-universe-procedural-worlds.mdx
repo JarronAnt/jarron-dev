@@ -1,0 +1,59 @@
+---
+title: "ASCII Universe: Generating Terrain, Geology, Forests, and Caverns"
+description: "An engineering overview of Phase 5.5's layered world generation and the constraints it imposes on the fortress simulation."
+publishedAt: 2026-11-13
+tags: ["C++", "World Generation", "Simulation"]
+project: ascii-universe
+series: "Building ASCII Universe"
+seriesOrder: 2
+draft: false
+---
+
+A fortress simulator needs terrain that is more than visual noise. Forests provide wood, geology determines which stone and ore can be excavated, rivers change the shape of the surface, and caverns open underground routes. **Phase 5.5** of ASCII Universe built this richer environmental foundation.
+
+## Layers that influence each other
+
+The repository documents the following implemented world-generation features: multiple landforms and climates, multi-octave noise, erosion, rivers and lakes, riparian moisture, soil formation, geological provinces, warped strata, host-rock-aware ores, regional forests, multi-layer caverns, underground pools, and natural starting-location selection.
+
+```text
+World seed + chosen environment
+                |
+                v
+  Terrain height / landforms
+                |
+                v
+  Water features and moisture
+                |
+                v
+  Soil + geological structure
+                |
+                v
+  Ores / forests / caverns
+                |
+                v
+      3D fortress tiles
+```
+
+*This is a conceptual reading of the generation layers, not a claim about the exact internal function-call order.*
+
+## Geological materials are gameplay data
+
+Unlike a decoration-only terrain system, ASCII Universe preserves material identity. A stone extracted from granite terrain can remain a **granite item**, which can later be used to construct a granite wall. Host-rock-aware ore deposits also create a more believable connection between geology and resource availability.
+
+This is why the world generator cannot be treated as separate from the economy. It determines which materials the workers encounter, how far they must travel for them, and where a fortress can reasonably expand.
+
+## Z-levels change the problem
+
+With a **stacked 3D tile volume**, surface terrain and underground caverns are parts of one model. The player sees a slice of the world, but excavation and pathfinding can affect connectivity across multiple levels. The design also supports water state and underground pools, which introduce another system that may change traversability.
+
+## Deterministic generation is a development tool
+
+The world can be generated from a seed. Reusing a seed is valuable for debugging generation anomalies and reproducing the location of terrain-related issues. The published simulation additionally tracks runtime random state for persistence.
+
+The next useful engineering directions are property tests for generated world validity, performance profiles for larger maps, and clearer visual comparisons of world seeds. Those are **recommendations**, not features I am claiming to have shipped.
+
+## How this feeds Phase 6
+
+With materials and traversable terrain already modeled, the construction system can consume physical stone and wood items rather than creating buildings out of thin air. The result is a coherent chain: environment → excavation → item creation → hauling → construction.
+
+**Source:** [ASCII Universe documentation and world-generation milestone](https://github.com/JarronAnt/ascii-universe#readme), [WorldGenerator.cpp](https://github.com/JarronAnt/ascii-universe/blob/master/src/WorldGenerator.cpp), and [world-generation headers](https://github.com/JarronAnt/ascii-universe/tree/master/include/ascii/worldgen).

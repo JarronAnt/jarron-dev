@@ -1,0 +1,71 @@
+---
+title: "ASCII Universe Phase 6: Turning Building Orders into Autonomous Work"
+description: "Construction plans, material reservations, hauling, builder jobs, deconstruction, and versioned saves in a C++ fortress simulation."
+publishedAt: 2026-11-12
+tags: ["C++", "ECS", "Simulation", "Architecture"]
+project: ascii-universe
+series: "Building ASCII Universe"
+seriesOrder: 3
+draft: false
+---
+
+Phase 6 was a meaningful shift for ASCII Universe. Before construction, the core gameplay loop could remove terrain and move extracted resources around. Now the player can **use those resources to create new world geometry**. The interesting part is that walls and stairs are not placed instantly: autonomous workers have to make them happen.
+
+## A construction plan is a promise, not a wall
+
+The player places a plan, not a finished structure. The published pipeline is:
+
+```text
+Place a ConstructionPlan
+          |
+          v
+   Determine requirement
+          |
+          v
+     Reserve an item
+          |
+          v
+   Create delivery job
+          |
+          v
+   Hauler carries item
+          |
+          v
+    Create build job
+          |
+          v
+   Builder performs work
+          |
+          v
+     Update GameMap
+```
+
+The distinction is fundamental. A UI click records intent; the simulation decides when that intent can become reality. Pending plans remain visible as construction ghosts.
+
+## Reservations prevent two workers from claiming one resource
+
+A construction plan marks a suitable item with `ReservedForConstruction`. Ordinary stockpile hauling cannot claim that item, and another wall remains waiting if no other suitable item exists. This is a small but essential concurrency-style problem in a single-threaded simulation: multiple autonomous systems must not assume they own the same piece of state.
+
+Once the material reaches a work site, a builder claims a `BuildConstruction` job. This separates transportation from building and makes the responsibilities of workers explicit.
+
+## Different structures, one world model
+
+Phase 6 supports **walls, floors, ramps, up stairs, down stairs, and up/down stairs**, with stone or wood materials. The delivered item determines the final material, so a granite stone creates a granite structure, while an oak log creates an oak one.
+
+The built result modifies the same `GameMap` used by terrain and pathfinding, not a secondary decorative building layer. Adding stairs or walls can therefore change where workers can travel.
+
+## Deconstruction needs history
+
+Removing a building is not always equivalent to setting its tile to empty. The `BuiltConstruction` record retains information about the original tile's geometry, material, features, and liquid state. That makes it possible to restore the previous tile when deconstructing and recover the appropriate material.
+
+This is a good example of a design decision that is easy to skip early but hard to retrofit after save files already exist.
+
+## Persisting unfinished work
+
+Phase 6's **save version 3** persists construction plans, states, reservations, deliveries, progress, and built structures, with version 2 migration support. Loading a fortress should not lose the fact that a particular stone was already promised to a particular build site.
+
+## What's next
+
+Workshops will reuse many of the same ideas: reserve inputs, deliver items, schedule specialist labor, track progress, and materialize outputs. In that sense, construction is not just a gameplay feature; it is a foundation for industrial simulation.
+
+**Source:** [ASCII Universe Phase 6 documentation](https://github.com/JarronAnt/ascii-universe#readme), [construction systems](https://github.com/JarronAnt/ascii-universe/blob/master/src/systems/ConstructionSystems.cpp), and [SaveManager](https://github.com/JarronAnt/ascii-universe/blob/master/src/SaveManager.cpp).

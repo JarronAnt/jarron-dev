@@ -1,28 +1,114 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-const upcoming = [
-  { topic: 'COMPILERS', title: 'Building MicroCC: Tokenization and expression parsing', description: 'A walkthrough of the lexer, recursive parsing, and operator precedence.' },
-  { topic: 'LLVM', title: 'OptForge: My first LLVM optimization pass', description: 'Learning LLVM IR and the anatomy of an analysis/transformation pass.' },
-  { topic: 'SIMULATION', title: 'How ASCII Universe uses an entity-component system', description: 'Organizing simulation state, systems, and fixed-timestep updates.' },
-];
+import ArticleCard from '../components/ArticleCard.astro';
+import { getPublishedPosts } from '../lib/blog';
+
+const posts = await getPublishedPosts();
+const tags = [...new Set(posts.flatMap((post) => post.data.tags))].sort((a, b) => a.localeCompare(b));
 ---
-<BaseLayout title="Writing" description="Development notes and technical essays on compilers, LLVM, and C++ systems.">
-  <section class="py-20">
+<BaseLayout title="Writing" description="Engineering journal: compilers, LLVM, C++, simulations, and virtual machines.">
+  <section class="border-b border-line/70 py-16 md:py-20">
     <p class="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-accent">Engineering journal</p>
     <h1 class="text-5xl font-semibold tracking-tight">Writing<span class="text-accent">.</span></h1>
-    <p class="mt-5 max-w-2xl leading-8 text-muted">Deep dives, build logs, and notes from the process of figuring things out.</p>
+    <p class="mt-5 max-w-2xl leading-8 text-muted">Deep dives, build logs, and implementation notes from the process of building and understanding software systems.</p>
   </section>
-  <section class="border-t border-line/70 py-10">
-    <div class="mb-6 flex items-center justify-between gap-4">
-      <h2 class="text-xl font-semibold">Planned articles</h2>
-      <span class="font-mono text-xs text-muted">Publishing begins in Phase 2</span>
-    </div>
-    {upcoming.map((article) => (
-      <div class="border-b border-line/70 py-7">
-        <p class="mb-2 font-mono text-xs text-accent">{article.topic} / UPCOMING</p>
-        <h3 class="text-xl font-medium text-ink">{article.title}</h3>
-        <p class="mt-2 text-sm leading-7 text-muted">{article.description}</p>
+
+  <section class="py-10" aria-label="Browse articles">
+    <div class="mb-6 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <div>
+        <p class="mb-2 font-mono text-xs uppercase tracking-widest text-accent">All posts</p>
+        <h2 class="text-2xl font-semibold tracking-tight">Explore the journal</h2>
       </div>
-    ))}
+      <div class="w-full max-w-sm">
+        <label for="article-search" class="mb-2 block font-mono text-xs text-muted">Search articles</label>
+        <input
+          id="article-search"
+          data-post-search
+          type="search"
+          placeholder="Search titles, projects, topics…"
+          autocomplete="off"
+          class="w-full rounded-xl border border-line bg-surface px-4 py-3 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-accent"
+        />
+      </div>
+    </div>
+
+    <div class="mb-8 flex flex-wrap gap-2" role="group" aria-label="Filter articles by tag">
+      <button type="button" data-tag-filter="all" aria-pressed="true" class="tag-filter rounded-full border border-accent bg-accent/10 px-3.5 py-2 font-mono text-xs text-accent">All topics</button>
+      {tags.map((tag) => (
+        <button type="button" data-tag-filter={tag} aria-pressed="false" class="tag-filter rounded-full border border-line px-3.5 py-2 font-mono text-xs text-muted transition-colors hover:border-accent/50 hover:text-accent">{tag}</button>
+      ))}
+    </div>
+
+    <div class="mb-5 font-mono text-xs text-muted" aria-live="polite" data-result-count>
+      {posts.length} {posts.length === 1 ? 'article' : 'articles'}
+    </div>
+
+    {posts.length ? (
+      <>
+        <div data-article-grid class="grid gap-5 md:grid-cols-2">
+          {posts.map((post) => <ArticleCard post={post} />)}
+        </div>
+        <p data-empty-results hidden class="rounded-xl border border-line p-8 text-center text-muted">No articles match those filters. Try another search or topic.</p>
+      </>
+    ) : (
+      <div class="rounded-xl border border-line p-8 text-muted">No published articles yet. Add an MDX file in <code>src/content/blog/</code> and set <code>draft: false</code>.</div>
+    )}
   </section>
 </BaseLayout>
+
+<script>
+  const input = document.querySelector<HTMLInputElement>('[data-post-search]');
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-tag-filter]')];
+  const cards = [...document.querySelectorAll<HTMLElement>('[data-post-card]')];
+  const count = document.querySelector<HTMLElement>('[data-result-count]');
+  const empty = document.querySelector<HTMLElement>('[data-empty-results]');
+  const knownTags = new Set(buttons.map((button) => button.dataset.tagFilter));
+
+  let activeTag = 'all';
+  const applyFilters = () => {
+    const query = (input?.value ?? '').trim().toLowerCase();
+    let visible = 0;
+
+    for (const card of cards) {
+      const cardTags = (card.dataset.tags ?? '').split('|');
+      const matchesTag = activeTag === 'all' || cardTags.includes(activeTag);
+      const matchesText = (card.dataset.search ?? '').includes(query);
+      card.hidden = !(matchesTag && matchesText);
+      if (!card.hidden) visible++;
+    }
+
+    for (const button of buttons) {
+      const selected = button.dataset.tagFilter === activeTag;
+      button.setAttribute('aria-pressed', String(selected));
+      button.classList.toggle('border-accent', selected);
+      button.classList.toggle('bg-accent/10', selected);
+      button.classList.toggle('text-accent', selected);
+      button.classList.toggle('border-line', !selected);
+      button.classList.toggle('text-muted', !selected);
+    }
+
+    if (count) count.textContent = `${visible} ${visible === 1 ? 'article' : 'articles'}`;
+    if (empty) empty.hidden = visible > 0;
+  };
+
+  const readTagFromUrl = () => {
+    const tag = new URL(window.location.href).searchParams.get('tag');
+    activeTag = tag && knownTags.has(tag) ? tag : 'all';
+    applyFilters();
+  };
+
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      activeTag = button.dataset.tagFilter ?? 'all';
+      const url = new URL(window.location.href);
+      if (activeTag === 'all') url.searchParams.delete('tag');
+      else url.searchParams.set('tag', activeTag);
+      window.history.replaceState({}, '', url);
+      applyFilters();
+    });
+  }
+
+  input?.addEventListener('input', applyFilters);
+  window.addEventListener('popstate', readTagFromUrl);
+  readTagFromUrl();
+</script>

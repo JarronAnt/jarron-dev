@@ -1,0 +1,12 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { sitePath } from '../lib/blog';
+---
+<BaseLayout title="404 — Page not found" description="The page you requested doesn't exist.">
+  <section class="py-28 text-center">
+    <p class="font-mono text-sm tracking-widest text-accent">HTTP 404</p>
+    <h1 class="mt-4 text-5xl font-semibold tracking-tight md:text-6xl">Page not found<span class="text-accent">.</span></h1>
+    <p class="mx-auto mt-6 max-w-lg leading-8 text-muted">The route may have moved, or you might have followed an old link.</p>
+    <a href={sitePath()} class="mt-8 inline-block rounded-lg border border-line px-5 py-3 text-sm text-ink transition-colors hover:border-accent">Return to the homepage ↗</a>
+  </section>
+</BaseLayout>

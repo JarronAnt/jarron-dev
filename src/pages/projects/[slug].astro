@@ -1,0 +1,66 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import { projects, type Project } from '../../data/projects';
+import { getPublishedPosts, sitePath } from '../../lib/blog';
+
+export function getStaticPaths() {
+  return projects.map((project) => ({ params: { slug: project.slug }, props: { project } }));
+}
+interface Props { project: Project }
+const { project } = Astro.props;
+const related = (await getPublishedPosts()).filter((post) => post.data.project === project.slug);
+---
+<BaseLayout title={project.name} description={project.description}>
+  <div class="py-14">
+    <a href={sitePath('projects/')} class="font-mono text-xs text-muted hover:text-accent">← All projects</a>
+    <header class="mt-12 border-b border-line/70 pb-12">
+      <div class="flex flex-wrap items-center gap-3 font-mono text-xs uppercase tracking-widest text-accent">
+        <span>{project.category}</span>
+        <span class="rounded-full border border-line px-3 py-1 text-muted normal-case tracking-normal">{project.milestone}</span>
+        <span class="rounded-full border border-line px-3 py-1 text-muted normal-case tracking-normal">{project.status}</span>
+      </div>
+      <h1 class="mt-5 text-5xl font-semibold tracking-tight md:text-6xl">{project.name}<span class="text-accent">.</span></h1>
+      <p class="mt-6 max-w-3xl text-lg leading-8 text-muted">{project.description}</p>
+      <div class="mt-7 flex flex-wrap gap-2">
+        {project.stack.map((tech) => <span class="rounded-md border border-line bg-surface px-3 py-1.5 font-mono text-xs text-muted">{tech}</span>)}
+      </div>
+      <a href={project.repo} target="_blank" rel="noopener noreferrer" class="mt-8 inline-block rounded-lg bg-accent px-5 py-3 text-sm font-semibold text-bg hover:brightness-110">View repository ↗</a>
+    </header>
+    <div class="grid gap-10 border-b border-line/70 py-12 lg:grid-cols-[1.3fr_.7fr]">
+      <section aria-labelledby="overview-heading">
+        <p class="mb-2 font-mono text-xs uppercase tracking-widest text-accent">Engineering case study</p>
+        <h2 id="overview-heading" class="text-3xl font-semibold tracking-tight">Overview</h2>
+        <p class="mt-5 leading-8 text-muted">{project.summary}</p>
+        <h3 class="mt-10 text-lg font-semibold">System flow</h3>
+        <div class="mt-4 rounded-xl border border-line bg-surface px-5 py-6 font-mono text-sm leading-8 text-accent">{project.architecture}</div>
+      </section>
+      <aside aria-label="Project details" class="space-y-9">
+        <div>
+          <h2 class="font-mono text-xs uppercase tracking-widest text-accent">Implemented</h2>
+          <ul class="mt-4 space-y-3 text-sm leading-6 text-muted">
+            {project.highlights.map((item) => <li class="flex gap-3"><span class="shrink-0 text-accent" aria-hidden="true">✓</span>{item}</li>)}
+          </ul>
+        </div>
+        <div>
+          <h2 class="font-mono text-xs uppercase tracking-widest text-accent">Next steps / optional improvements</h2>
+          <ul class="mt-4 space-y-3 text-sm leading-6 text-muted">
+            {project.next.map((item) => <li class="flex gap-3"><span class="shrink-0 text-accent" aria-hidden="true">→</span>{item}</li>)}
+          </ul>
+        </div>
+      </aside>
+    </div>
+    <section class="py-12" aria-labelledby="project-articles-heading">
+      <p class="mb-2 font-mono text-xs uppercase tracking-widest text-accent">Project journal</p>
+      <h2 id="project-articles-heading" class="text-3xl font-semibold tracking-tight">Related writing</h2>
+      <p class="mt-3 max-w-2xl leading-7 text-muted">Technical write-ups, implementation details, tradeoffs, and lessons from this project.</p>
+      {related.length ? (
+        <div class="mt-8 grid gap-5 md:grid-cols-2">
+          {related.map((post) => <ArticleCard post={post} compact />)}
+        </div>
+      ) : (
+        <div class="mt-8 rounded-xl border border-line p-7 text-sm text-muted">No published posts for {project.name} yet. The source repository is linked above.</div>
+      )}
+    </section>
+  </div>
+</BaseLayout>

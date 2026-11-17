@@ -1,0 +1,63 @@
+---
+title: "OptForge: A Small Optimization Pass, Tested Like a Compiler"
+description: "A closer look at safe integer identity rewrites, IR verification, and what a first optimization pass should deliberately avoid."
+publishedAt: 2026-11-14
+tags: ["LLVM", "Optimization", "Testing"]
+project: optforge
+series: "Building OptForge"
+seriesOrder: 2
+draft: false
+---
+
+My first OptForge pass, `optforge-simplify`, is intentionally modest. It recognizes **integer identity operations** and replaces an instruction's result with an existing value when that is a valid simplification. The interesting part is not the amount of code removed. It is the discipline around deciding which rewrites are safe and checking that the result is still valid LLVM IR.
+
+## The implemented rule set
+
+The Phase 1 README explicitly lists these transformations:
+
+| Before | Replacement |
+| --- | --- |
+| `x + 0`, `0 + x` | `x` |
+| `x - 0` | `x` |
+| `x * 1`, `1 * x` | `x` |
+| `x & -1`, `-1 & x` | `x` |
+| `x | 0`, `0 | x` | `x` |
+| `x ^ 0`, `0 ^ x` | `x` |
+| `x << 0`, `x >> 0` | `x` |
+| `x / 1` | `x` |
+
+The shift rule includes `shl`, `lshr`, and `ashr`; division includes `sdiv` and `udiv`. The scope is **scalar integer instructions**—not floating point, vectors in general, broad constant folding, or the complete set of LLVM algebraic optimizations.
+
+## Why replacing a value matters
+
+LLVM IR represents results as values used by later instructions. When `%result = add i32 %x, 0` is redundant, users of `%result` can use `%x` instead. The instruction then becomes removable if it has no remaining uses and no relevant side effects.
+
+```llvm
+; Before
+%result = xor i32 %x, 0
+%other  = add i32 %result, 5
+
+; Conceptually after simplifying the XOR
+%other  = add i32 %x, 5
+```
+
+This makes IR transformations different from textual search and replace: the rewrite must operate on **typed instructions and uses**, not just strings that happen to resemble arithmetic.
+
+## A small test matrix
+
+I want each rule to have at least one positive case and to avoid matching nearby but incorrect cases:
+
+- `add i32 %x, 0` should simplify; `add i32 %x, 1` should not.
+- `mul i32 %x, 1` should simplify; multiplying by zero is a different transformation with different considerations.
+- `shl i32 %x, 0` should simplify; shifting by a nonzero amount changes the value.
+- Integer-only rules should not silently expand to floating point operations.
+
+The repository uses **LLVM FileCheck** to assert expected output and **IR verification** through `opt -verify-each` to catch structurally invalid transformations. These checks test different things: the former asks whether a specific optimization happened; the latter asks whether the resulting IR is well-formed.
+
+## The next layer: analysis
+
+Algebraic identities are local. The next planned phases introduce concepts such as known constants, liveness and dead code, value numbering, and control-flow structure. Those optimizations often depend on relationships **between instructions** rather than the operands of just one instruction.
+
+Before moving to those more complicated passes, I want Phase 1 to remain a minimal reference example of building, registering, running, and testing an LLVM plugin.
+
+**Source:** [OptForge README](https://github.com/JarronAnt/OptForge#readme), [project tests](https://github.com/JarronAnt/OptForge/tree/master/tests), and [LLVM IR Language Reference](https://llvm.org/docs/LangRef.html). Code snippets show representative IR for the documented rules, not measured benchmark results.

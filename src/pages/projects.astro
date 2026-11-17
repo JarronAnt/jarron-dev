@@ -2,6 +2,9 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ProjectCard from '../components/ProjectCard.astro';
 import { projects } from '../data/projects';
+import { getPublishedPosts } from '../lib/blog';
+const posts = await getPublishedPosts();
+const countFor = (slug: string) => posts.filter((post) => post.data.project === slug).length;
 ---
 <BaseLayout title="Projects" description="Projects in compiler engineering, optimization, emulation, and simulation systems.">
   <section class="py-20">
@@ -10,6 +13,6 @@ import { projects } from '../data/projects';
     <p class="mt-5 max-w-2xl leading-8 text-muted">Projects I've built or am actively developing, from compilers and virtual machines to procedural simulation systems.</p>
   </section>
   <section class="grid gap-5 border-t border-line/70 py-10 md:grid-cols-2 xl:grid-cols-3">
-    {projects.map((project) => <ProjectCard project={project} />)}
+    {projects.map((project) => <ProjectCard project={project} articleCount={countFor(project.slug)} />)}
   </section>
 </BaseLayout>

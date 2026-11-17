@@ -1,0 +1,75 @@
+---
+title: "ASCII Universe: Six Phases of Building a Fortress Simulation"
+description: "How a C++20 ECS evolved from fixed-tick movement into a 3D colony simulation with mining, hauling, world generation, and construction."
+publishedAt: 2026-11-16
+tags: ["C++", "Simulation", "ECS"]
+project: ascii-universe
+series: "Building ASCII Universe"
+seriesOrder: 1
+draft: false
+---
+
+**ASCII Universe** is a Dwarf Fortress-inspired colony and world simulation written in **C++20**. The player's job is not to steer each inhabitant manually; it is to designate work and let autonomous workers decide how to carry it out. That one decision drives most of the architecture.
+
+At the end of **Phase 6**, the core fortress loop is operational: mine resources, create physical items, haul them to storage or work sites, and construct new terrain. The game is still in development—workshops, industries, societies, and long-term histories belong to later phases—but the simulation already has several interlocking systems.
+
+## An architecture organized around work
+
+```text
+Player places designation / plan
+               |
+               v
+          Job creation
+               |
+               v
+  Autonomous worker selection
+               |
+               v
+ Movement + material reservation
+               |
+               v
+   Simulation updates world state
+               |
+               v
+          SDL3 display
+```
+
+I keep simulation rules out of the renderer. SDL3 translates input and visualizes the state; the ECS, jobs, map, and systems own what is actually happening. The project uses **EnTT**, a **fixed-timestep update**, and deterministic world-generation and runtime random-number state.
+
+## The milestone timeline
+
+| Milestone | Implemented foundation |
+| --- | --- |
+| Phase 1 | ECS, 3D positions, seeded RNG, fixed-tick simulation |
+| Phase 2 | Job board, worker assignment, mining, pathfinding |
+| Phase 3 | Z-levels, stairs, ramps, vertical excavation, water |
+| Phase 4 | Versioned JSON persistence, SDL3 ASCII renderer, controls |
+| Phase 5 | Designation painting, stockpiles, hauling, worker inspection |
+| Phase 5.5 | Landforms, climate, rivers, lakes, forests, geology, caverns |
+| Phase 6 | Material-aware building, delivery, construction, deconstruction |
+
+These are the project's published milestones, not a list of ideas waiting to be implemented.
+
+## The world is a volume, not a flat map
+
+A typical generated fortress map is **96 × 64 × 24** tiles. Each position has `x`, `y`, and `z`; the user views one horizontal layer at a time, while the simulation can route workers between connected layers through ramps and stairs.
+
+That design choice adds complexity everywhere: excavation can change vertical connectivity, pathfinding must understand traversal between levels, and every change to geometry can affect existing jobs.
+
+## A resource is more than an inventory count
+
+The simulation models physical item entities with a type, material, location, and sometimes a carrier. Granite stone and limestone stone remain distinct resources. Stockpiles reserve cells and items so two workers do not claim the same destination or object.
+
+That decision pays off when construction arrives. A wall cannot simply subtract one unit from a global stone counter; a hauler must retrieve a **specific reserved item**, transport it, and then a builder must perform work at the plan site.
+
+## Why fixed ticks and persistence matter
+
+The runtime uses fixed simulation ticks and retains random-number state in versioned JSON saves. This improves reproducibility and gives the design a path toward deterministic testing. The Phase 6 save schema is version **3**, including migration support for version 2 saves.
+
+The important lesson is that persistence cannot be bolted on later as just a list of entities. It also needs the **relationships between unfinished jobs, reserved resources, workers, and planned buildings**.
+
+## The next frontier
+
+**Phase 7: Workshops and Industry** is next. Recipes, production queues, more material-specific items, and specialized workshops will extend the job and hauling system rather than replacing it. The goal is a world where complexity emerges from simple subsystems interacting over time.
+
+**Source:** [ASCII Universe repository](https://github.com/JarronAnt/ascii-universe), [Phase 1–6 roadmap and architecture](https://github.com/JarronAnt/ascii-universe#readme), and [simulation sources](https://github.com/JarronAnt/ascii-universe/tree/master/src).

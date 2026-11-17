@@ -1,0 +1,69 @@
+---
+title: "Rusty8: Sprite Drawing, Keyboard Input, and Timing"
+description: "A deeper look at the CHIP-8 display buffer, XOR collision rules, keypad mapping, and the desktop interpreter loop."
+publishedAt: 2026-11-11
+tags: ["Rust", "Emulation", "Graphics"]
+project: rusty8
+series: "Inside Rusty8"
+seriesOrder: 2
+draft: false
+---
+
+Emulation is not only about decoding opcodes. An emulator must translate virtual-machine effects into visible output and human input without accidentally changing the semantics of the emulated computer. Rusty8 provides a compact example of that boundary.
+
+## One-dimensional display, two-dimensional output
+
+CHIP-8 exposes a **64-by-32 monochrome screen**. Rusty8 stores it in a flat boolean array, with each coordinate mapping to:
+
+```text
+index = x + 64 * y
+```
+
+The drawing opcode (`DXYN`) reads sprite rows from RAM and XORs sprite bits into the display. If an enabled pixel is turned off during XOR, the emulator sets `VF` to indicate collision. The core also wraps sprite coordinates at the screen edges using modulo arithmetic.
+
+```rust
+// From chip8_core/src/lib.rs (abbreviated)
+let idx = x + SCREEN_WIDTH * y;
+flipped |= self.screen[idx];
+self.screen[idx] ^= true;
+```
+
+This is a good example of an instruction producing two effects: it modifies graphical state **and** returns information through a CPU register.
+
+## Translating a modern keyboard
+
+The guest machine uses a 16-key hexadecimal keypad. The SDL2 frontend maps keyboard keys into that 4 × 4 layout:
+
+```text
+Host keyboard       CHIP-8 keypad
+1 2 3 4             1 2 3 C
+Q W E R             4 5 6 D
+A S D F             7 8 9 E
+Z X C V             A 0 B F
+```
+
+The frontend sends both keydown and keyup events into `Emu::keypress`. The interpreter's key-test opcodes can then inspect guest keypad state, while its wait-for-key instruction repeats until an input arrives.
+
+## Execution and timers are different concepts
+
+The desktop loop currently runs a fixed number of interpreter ticks each frame and calls `tick_timers()` once per frame:
+
+```rust
+for _ in 0..TICKS_PER_FRAME {
+    chip8.tick();
+}
+chip8.tick_timers();
+draw_screen(&chip8, &mut canvas);
+```
+
+This excerpt matches the published desktop source. It is a simple and useful design for a learning emulator, but for broad ROM compatibility I would eventually decouple CPU cycles from the timer's target frequency and wall-clock timing. The current sound timer state is present; audible beep output is not wired up in the core.
+
+## A display-indexing issue I noticed in the code review
+
+The core indexes the 64-column framebuffer using `x + SCREEN_WIDTH * y`, but the published SDL2 frontend currently converts the flattened index back into a row using `i / SCREEN_HEIGHT`. For a buffer 64 pixels wide, that inverse should be **`i / SCREEN_WIDTH`**. Using 32 instead of 64 produces incorrect Y coordinates for pixels outside the first row. This is a small but concrete example of why writing up completed projects can uncover correctness issues worth fixing later.
+
+## Looking critically at completed work
+
+The project is complete as a learning milestone, but reviewing the code reveals opportunities for stronger bounds checks, compatibility tests, audio output, and a dedicated timing loop. That is part of what makes writing about a finished project valuable: it creates a record not only of what shipped, but of what I would improve with what I now know.
+
+**Source:** [Rusty8 core implementation](https://github.com/JarronAnt/Rusty8/blob/main/chip8_core/src/lib.rs) and [SDL2 frontend](https://github.com/JarronAnt/Rusty8/blob/main/desktop/src/main.rs). Snippets are shortened from the public code and are not presented as independent executable programs.

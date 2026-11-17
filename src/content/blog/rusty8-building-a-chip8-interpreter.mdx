@@ -1,0 +1,75 @@
+---
+title: "Rusty8: Building a CHIP-8 Interpreter in Rust"
+description: "A code-grounded tour of Rusty8's completed project: 4 KB of memory, registers, fetch/decode/execute, and an SDL2 desktop frontend."
+publishedAt: 2026-11-16
+tags: ["Rust", "Emulation", "Virtual Machines"]
+project: rusty8
+series: "Inside Rusty8"
+seriesOrder: 1
+draft: false
+---
+
+**Rusty8** is a completed personal CHIP-8 emulator project written in Rust. I used it to explore a smaller, more concrete version of the problems found in interpreters, virtual machines, and CPU emulators: a machine state, an instruction format, a decoder, and an execution loop.
+
+The public repository separates **`chip8_core`**, the interpreter, from **`desktop`**, a graphical frontend built with SDL2. That separation is one of the strongest architectural decisions in the project: the core owns CHIP-8 state, while the frontend deals with input, windows, and drawing.
+
+## Defining the machine
+
+The source defines a **64 × 32 monochrome display**, **4,096 bytes of RAM**, **16 general-purpose 8-bit registers**, a **16-entry call stack**, **16 keypad states**, and delay/sound timers. A ROM begins at memory address `0x200`, leaving earlier memory for the built-in font data and system space.
+
+The heart of the project is the `Emu` struct:
+
+```rust
+pub struct Emu {
+    pc: u16,
+    ram: [u8; RAM_SIZE],
+    screen: [bool; SCREEN_WIDTH * SCREEN_HEIGHT],
+    v_reg: [u8; NUM_REGS],
+    i_reg: u16,
+    sp: u16,
+    stack: [u16; STACK_SIZE],
+    keys: [bool; NUM_KEYS],
+    dt: u8,
+    st: u8,
+}
+```
+
+*This excerpt comes from the public `chip8_core/src/lib.rs` source; constant definitions are omitted for brevity.*
+
+Unlike a high-level language runtime, this virtual machine makes its entire architectural state explicit. Each decoded instruction modifies the emulator's state according to the CHIP-8 instruction set.
+
+## Fetch, decode, execute
+
+A CHIP-8 opcode occupies two bytes. Rusty8 reads both at the program counter, combines them into a `u16`, advances `pc` by two, then matches on the instruction's hexadecimal nibbles.
+
+```rust
+fn fetch(&mut self) -> u16 {
+    let higher_byte = self.ram[self.pc as usize] as u16;
+    let lower_byte = self.ram[(self.pc + 1) as usize] as u16;
+    let op = (higher_byte << 8) | lower_byte;
+    self.pc += 2;
+    op
+}
+```
+
+This source excerpt shows the core principle: a ROM is data until the interpreter assigns semantics to the next pair of bytes. The decoder implements jumps, calls, skips, register operations, arithmetic with carry/borrow, shifts, memory operations, key tests, drawing, and timer instructions.
+
+## Memory and control flow
+
+A subroutine call stores the next instruction address on the stack, then replaces the program counter. Return pops that address. Conditional-skip opcodes advance past another two-byte instruction if a condition is met.
+
+For arithmetic, Rust's `wrapping_add`, `overflowing_add`, and `overflowing_sub` fit the 8-bit register model: values wrap, and the `VF` flag can record carry or borrow behavior. This makes low-level arithmetic semantics part of the emulator, rather than a side effect of normal host-language integers.
+
+## The SDL2 frontend
+
+The desktop program opens a window, loads a ROM provided on the command line, polls keyboard events, advances the interpreter, ticks timers, and redraws the 64 × 32 display at a larger scale. The front end controls how the experience feels without owning the instruction set.
+
+## Finished project versus perfect emulation
+
+Calling Rusty8 completed describes its **project milestone**, not a guarantee of compatibility with every historical CHIP-8 variant or ROM. The published source still has a generic `unimplemented!` fallback for unrecognized opcodes, and sound is represented by timer state rather than a full audio implementation. Robust bounds checking, dedicated test ROMs, and configurable compatibility quirks would be good future polishing work.
+
+## What I took away
+
+The biggest conceptual lesson is how cleanly an interpreter fits into a loop: **fetch bytes, decode meaning, update state, repeat**. Rust made those state transitions explicit while encouraging separation between the platform-specific front end and the emulated machine.
+
+**Source:** [Rusty8 repository](https://github.com/JarronAnt/Rusty8), [interpreter core](https://github.com/JarronAnt/Rusty8/blob/main/chip8_core/src/lib.rs), and [SDL2 desktop entry point](https://github.com/JarronAnt/Rusty8/blob/main/desktop/src/main.rs).
